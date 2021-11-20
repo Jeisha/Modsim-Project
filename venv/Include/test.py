@@ -9,7 +9,7 @@ import numpy as np
 window = Tk()
 agents = []
 simTime = 0
-simEnd = 100
+simEnd = 500
 cusIndex = 0
 appWidth = 1000
 appHeight = 500
