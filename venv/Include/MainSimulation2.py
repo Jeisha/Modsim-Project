@@ -18,16 +18,12 @@ class QueueClass(Queue) :
         self.Time = 0
 
 simTime = 0
-simEnd = 119
+simEnd = 30
 rejected = QueueClass(1000000,'Rejected') # for passenger who fail to board flight
 exit = QueueClass(1000000,'Exit') # for passenger who pass check in
 passengers = [] # for total all pass who go through the door
 passengersLock = threading.Lock()
 DoorQ = QueueClass(10000,'DOORQ')
-FlightTime = 29 # next flight time
-TicketInt = ['MH0370', 'BD0674', 'BA1326', 'BA1476', 'GF5232'] # international flight
-TicketDom = ['AA8025', 'AA7991', 'AA8017', 'BA1442', 'BA1388'] # domestic flight
-FlightTimeProbabilities = []
 threads = [] # all threads
 
 OverallWaitingTime = 0 # total waiting time for all passengers
@@ -51,29 +47,28 @@ class CheckInServer(threading.Thread):
         while simTime < simEnd :
             if self.Status == CheckInServer.FREE:
                 self.CheckGetCustomer()
-            elif self.Status == CheckInServer.BUSY and not self.Q.empty():
+            if self.Status == CheckInServer.BUSY and self.Customer != None:
                 self.Status = CheckInServer.FREE
 
                 if not self.Customer.Passport:
-                    time.sleep(random.uniform(0, 3))
+                    time.sleep(random.randint(0, 3))
                     self.Customer.pos = Passenger.CHECKIN_REJECTED
                     rejected.Lock.acquire()
                     rejected.put(self)
                     rejected.Lock.release()
                 
                 if self.Customer.Luggage:
-                    time.sleep(random.uniform(2, 5))
+                    time.sleep(random.randint(0, 3))
                     self.Customer.pos = Passenger.CHECKIN_DONE
                     exit.Lock.acquire()
                     exit.put(self)
                     exit.Lock.release()
                 else:
-                    time.sleep(random.uniform(5, 10))
+                    time.sleep(random.randint(1, 4))
                     self.Customer.pos = Passenger.CHECKIN_DONE
                     exit.Lock.acquire()
                     exit.put(self)
                     exit.Lock.release()
-            time.sleep(1)
                 
     def CheckGetCustomer(self):
         self.Q.LockGet.acquire()
@@ -91,16 +86,17 @@ class Passenger(threading.Thread):
     CHECKIN_REJECTED = 3
     CHECKIN_DONE = 4
     
-    def __init__(self, maritalStatus, Ticket, FlightType, name):
+    def __init__(self, maritalStatus, FlightType, name):
         threading.Thread.__init__(self)
         self.MaritalStatus = maritalStatus
         self.FlightType = FlightType
-        self.Ticket = Ticket
+        self.Ticket = np.random.choice([True,False],1,[0.98,0.02])
         self.Passport = np.random.choice([True,False],1,[0.98,0.02])
         self.Name = name
         self.pos = Passenger.DOORQ_IN_QUEUE
         self.Luggage = np.random.choice([True,False],1,[0.75,0.25])
         self.Q = None
+        print(f'Passenger {self.Name} created.')
     
     def run(self):
         global simTime, simEnd, CheckInServers, rejected, OverallWaitingTime, DoorQ
@@ -122,7 +118,6 @@ class Passenger(threading.Thread):
                 qsize = []
                 Break = False
                 for i in newQ:
-                    qsize.append(i.qsize())
                     if not i.full():
                         if i.empty():
                             self.Q = i
@@ -133,37 +128,24 @@ class Passenger(threading.Thread):
                             Break = True
                             break
                         else:
+                            Break = False
                             qsize.append(i.qsize())
                 if not Break:
-                    OverallWaitingTimeLock.acquire()
-                    OverallWaitingTime += 1
-                    OverallWaitingTimeLock.release()
-                    DoorQ.Lock.acquire()
-                    DoorQ.Time += 1
-                    DoorQ.Lock.release()
-                    if qsize[0] > qsize[1]:
-                        if qsize[0] > qsize[2]:
-                            self.Q = newQ[0]
-                        else:
-                            self.Q = newQ[2]
-                    else:
-                        if qsize[1] > qsize[2]:
-                            self.Q = newQ[1]
-                        else:
-                            self.Q = newQ[2]
-                    
+                    minVal = min(qsize)
+                    minIndex = qsize.index(minVal)
+                    self.Q = newQ[minIndex]
                     self.Q.Lock.acquire()
                     self.Q.put(self)
                     self.Q.Lock.release()
                     self.pos = Passenger.CHECKIN_IN_QUEUE
-                             
                 
+                             
             if  self.pos == Passenger.CHECKIN_REJECTED:
+                print(f'Passenger {self.Name} rejected')
                 break
-
             if self.pos == Passenger.CHECKIN_DONE:
+                print(f'Passenger {self.Name} has done Check-in. Goint to next procedure.')
                 break
-
             time.sleep(1)
 
         passengersLock.acquire()
@@ -181,24 +163,26 @@ for i in range(3):
     CheckInServers.append(server)
     CheckInServers[i].start()
     threads.append(server)
+print('Servers Created.... Starting Simulation...')
+time.sleep(1)
 
 while simTime < simEnd:
+    
+    FlightTimeProbabilities = dt.PassengerArriveProb
+    NewPassengerAmount = FlightTimeProbabilities[simTime%30]
 
-    NewPassengerAmount = random.randint(1,5)
     for i in range(NewPassengerAmount):
 
         maritalStatus = np.random.choice(Passenger.status,1,Passenger.statusWeight)[0]
 
         flightType = np.random.choice(['International','Domestic'],1,[dt.InternationalRatio,dt.DomesticRatio])
 
-        Ticket = random.choice(TicketInt)
-
         if maritalStatus == Passenger.status[0]:
             Name = names.get_full_name()
         else:
-            Name = names.get_last_name
+            Name = names.get_last_name()
 
-        newPass = Passenger(maritalStatus, Ticket, flightType,Name)
+        newPass = Passenger(maritalStatus, flightType, Name)
         newPass.start()
         passengersLock.acquire()
         passengers.append(newPass)
@@ -208,7 +192,6 @@ while simTime < simEnd:
 
     time.sleep(1)
     simTime += 1
-    print(simTime)
 
 for x in threads:
     x.join()
@@ -219,7 +202,6 @@ for i in passengers:
 
 print(f'People going in = {DoorQ.qsize()}')
 print(f'Passenger in BigQ = {bigQ}')
-print(f'People waiting time before going to checkin queue = {DoorQ.Time}')
 print(f'Q1 = {CheckInServersQ[0].qsize()}, waiting time {CheckInServersQ[0].Time}')
 print(f'Q2 = {CheckInServersQ[1].qsize()}, waiting time {CheckInServersQ[1].Time}')
 print(f'Q3 = {CheckInServersQ[2].qsize()}, waiting time {CheckInServersQ[2].Time}')

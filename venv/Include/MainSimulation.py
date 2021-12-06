@@ -13,8 +13,7 @@ CheckInServers = []
 simTime = 0
 simEnd = 120
 FlightTime = 29
-TicketInt = ['MH0370', 'BD0674', 'BA1326', 'BA1476', 'GF5232']
-TicketDom = ['AA8025', 'AA7991', 'AA8017', 'BA1442', 'BA1388']
+Ticket = ['MH0370', 'BD0674', 'BA1326', 'BA1476', 'GF5232','AA8025', 'AA7991', 'AA8017', 'BA1442', 'BA1388']
 FlightQueueInt = Queue(maxsize=5)
 FlightQueueDom = Queue(maxsize=5)
 for i in TicketInt:
