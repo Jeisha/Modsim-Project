@@ -21,7 +21,7 @@ l1 = 50
 l2 = 50
 fillColor = ['red', 'blue', 'black', 'green', 'grey']
 
-window.title("Homework week 8 class - sim3.py")
+window.title("Homework week 8 class - simABM.py")
 canvas = Canvas(window, width=appWidth, height=appHeight, bg="white")
 canvas.grid(row=0, column=0)
 
