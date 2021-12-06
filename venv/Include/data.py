@@ -8,8 +8,8 @@ f = open("venv\\Include\\data.json",'r')
 datas = json.loads(f.read())
 
 data = datas['December']
-TotalInternationalPassenger = data['International']
-TotalDomesticPassenger = data['Domestic']
+TotalInternationalPassenger = 75000
+TotalDomesticPassenger = 238000
 TotalPassenger = TotalInternationalPassenger + TotalDomesticPassenger
 InternationalRatio = TotalInternationalPassenger / TotalPassenger
 DomesticRatio = TotalDomesticPassenger / TotalPassenger
