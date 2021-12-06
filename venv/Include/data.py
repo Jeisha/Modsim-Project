@@ -15,3 +15,6 @@ DomesticRatio = TotalDomesticPassenger / TotalPassenger
 TotalPassengerDaily = round(TotalPassenger / 31)
 TotalPassengerHourly = round(TotalPassengerDaily / 24)
 TotalPassengerMinutely = round(TotalPassengerHourly / 60)
+
+print(InternationalRatio)
+print(DomesticRatio)

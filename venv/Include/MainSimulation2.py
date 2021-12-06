@@ -5,6 +5,7 @@ import names
 import time
 from queue import Queue
 import data as dt
+import numpy as np
 
 
 class QueueClass(Queue) :
@@ -17,7 +18,7 @@ class QueueClass(Queue) :
         self.Time = 0
 
 simTime = 0
-simEnd = 15
+simEnd = 119
 rejected = QueueClass(1000000,'Rejected') # for passenger who fail to board flight
 exit = QueueClass(1000000,'Exit') # for passenger who pass check in
 passengers = [] # for total all pass who go through the door
@@ -53,7 +54,7 @@ class CheckInServer(threading.Thread):
             elif self.Status == CheckInServer.BUSY and not self.Q.empty():
                 self.Status = CheckInServer.FREE
 
-                if not self.Customer.Ticket:
+                if not self.Customer.Passport:
                     time.sleep(random.uniform(0, 3))
                     self.Customer.pos = Passenger.CHECKIN_REJECTED
                     rejected.Lock.acquire()
@@ -95,10 +96,10 @@ class Passenger(threading.Thread):
         self.MaritalStatus = maritalStatus
         self.FlightType = FlightType
         self.Ticket = Ticket
-        self.Passport = random.choices([True,False],[98,2])
+        self.Passport = np.random.choice([True,False],1,[0.98,0.02])
         self.Name = name
         self.pos = Passenger.DOORQ_IN_QUEUE
-        self.Luggage = random.choices([True,False],[75,25])
+        self.Luggage = np.random.choice([True,False],1,[0.75,0.25])
         self.Q = None
     
     def run(self):
@@ -174,7 +175,7 @@ class Passenger(threading.Thread):
         passengersLock.release()
 
 for i in range(3):
-    CheckInQ = QueueClass(30,f'Q{i}')
+    CheckInQ = QueueClass(10000,f'Q{i}')
     server = CheckInServer(CheckInQ)
     CheckInServersQ.append(CheckInQ)
     CheckInServers.append(server)
@@ -186,11 +187,12 @@ while simTime < simEnd:
     NewPassengerAmount = random.randint(1,5)
     for i in range(NewPassengerAmount):
 
-        maritalStatus = random.choices(Passenger.status,Passenger.statusWeight)[0]
+        maritalStatus = np.random.choice(Passenger.status,1,Passenger.statusWeight)[0]
 
-        flightType = random.choices(['International','Domestic'],[dt.InternationalRatio,dt.DomesticRatio])
+        flightType = np.random.choice(['International','Domestic'],1,[dt.InternationalRatio,dt.DomesticRatio])
 
         Ticket = random.choice(TicketInt)
+
         if maritalStatus == Passenger.status[0]:
             Name = names.get_full_name()
         else:
