@@ -219,7 +219,7 @@ for i in range(serverAmount):
 while simTime < simEnd:
 
 
-    NewPassengerAmount = random.randint(0,4)
+    NewPassengerAmount = random.randint(0,5)
     for i in range(NewPassengerAmount):
         
         # status for person
@@ -245,13 +245,14 @@ while simTime < simEnd:
             index.append(i)
         else:
             canvas.move(passengerDisplay[i],CurrPassengers[i].move[0],CurrPassengers[i].move[1])
-            SimWindow.update()
+    
     index.sort(reverse=True)
     for i in index:
         canvas.delete(f'{CurrPassengers[i].Name}')
         CurrPassengers.pop(i)
         passengerDisplay.pop(i)
     
+    SimWindow.update()
     time.sleep(2) # 1 minute delay
     simTime += 1
     
