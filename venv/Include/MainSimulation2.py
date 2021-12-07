@@ -29,19 +29,16 @@ OverallWaitingTimeLock = threading.Lock()
 CheckInServersQ = [] # list for check in queue
 CheckInServers = [] # list for check in server
 
-# this whole section if for data manipulation
-a = [2 for i in range(12)] # create a list that contains 12 of integer 2
-PassengerArriveProb = a + [3, 4, 8, 10, 8, 4, 3] + a  # this is to decide the number of customer coming for every minutes
-
 class CheckInServer(threading.Thread):
     BUSY = 0
     FREE = 1
-    def __init__(self,queue):
+    def __init__(self,queue,ID):
         threading.Thread.__init__(self)
         self.Status = CheckInServer.FREE
         self.Customer = None
         self.Name = names.get_full_name()
         self.Q = queue
+        self.ID = ID
 
     def run(self):
         global simTime, simEnd
@@ -57,35 +54,35 @@ class CheckInServer(threading.Thread):
                     self.Customer.pos = Passenger.CHECKIN_REJECTED
                     # add to rejected list
                     rejected.Lock.acquire()
-                    rejected.put(self)
+                    rejected.put(self.Customer)
                     rejected.Lock.release()
                     # increasing the number served by the server
                     self.Q.Lock.acquire()
                     self.Q.Number += 1
                     self.Q.Lock.release()
-                
-                if self.Customer.Luggage:
-                    time.sleep(random.randint(0, 2))
-                    self.Customer.pos = Passenger.CHECKIN_DONE
-                    # add to done list
-                    exit.Lock.acquire()
-                    exit.put(self)
-                    exit.Lock.release()
-                    # increasing the number served by the server
-                    self.Q.Lock.acquire()
-                    self.Q.Number += 1
-                    self.Q.Lock.release()
                 else:
-                    time.sleep(random.randint(1, 4))
-                    self.Customer.pos = Passenger.CHECKIN_DONE
-                    # add to done list
-                    exit.Lock.acquire()
-                    exit.put(self)
-                    exit.Lock.release()
-                    # increasing the number served by the server
-                    self.Q.Lock.acquire()
-                    self.Q.Number += 1
-                    self.Q.Lock.release()
+                    if self.Customer.Luggage:
+                        time.sleep(random.randint(0, 2))
+                        self.Customer.pos = Passenger.CHECKIN_DONE
+                        # add to done list
+                        exit.Lock.acquire()
+                        exit.put(self.Customer)
+                        exit.Lock.release()
+                        # increasing the number served by the server
+                        self.Q.Lock.acquire()
+                        self.Q.Number += 1
+                        self.Q.Lock.release()
+                    else:
+                        time.sleep(random.randint(1, 4))
+                        self.Customer.pos = Passenger.CHECKIN_DONE
+                        # add to done list
+                        exit.Lock.acquire()
+                        exit.put(self.Customer)
+                        exit.Lock.release()
+                        # increasing the number served by the server
+                        self.Q.Lock.acquire()
+                        self.Q.Number += 1
+                        self.Q.Lock.release()
 
     # function to get customer from queue
     def CheckGetCustomer(self):
@@ -93,6 +90,8 @@ class CheckInServer(threading.Thread):
         if not self.Q.empty():
             self.Customer = self.Q.get()
             self.Status = CheckInServer.BUSY
+        else:
+            self.Customer = None
         self.Q.LockGet.release()
 
 class Passenger(threading.Thread):
@@ -103,7 +102,7 @@ class Passenger(threading.Thread):
     CHECKIN_REJECTED = 3
     CHECKIN_DONE = 4
     
-    def __init__(self, maritalStatus, name):
+    def __init__(self, maritalStatus, name, Loc):
         threading.Thread.__init__(self)
         self.MaritalStatus = maritalStatus
         self.Ticket = np.random.choice([True,False],1,[0.98,0.02])
@@ -112,6 +111,7 @@ class Passenger(threading.Thread):
         self.pos = Passenger.DOORQ_IN_QUEUE
         self.Luggage = np.random.choice([True,False],1,[0.75,0.25])
         self.Q = None
+        self.Loc = Loc
         print(f'Passenger {self.Name} created.')
     
     def run(self):
@@ -140,6 +140,7 @@ class Passenger(threading.Thread):
                             self.Q.Lock.release()
                             self.pos = Passenger.CHECKIN_IN_QUEUE
                             Break = True
+                            print(f'{self.Name} went into {self.Q.Name}')
                             break
                         else:
                             Break = False
@@ -152,6 +153,7 @@ class Passenger(threading.Thread):
                     self.Q.put(self)
                     self.Q.Lock.release()
                     self.pos = Passenger.CHECKIN_IN_QUEUE
+                    print(f'{self.Name} went into {self.Q.Name}')
                 
             # if rejected                 
             if  self.pos == Passenger.CHECKIN_REJECTED:
@@ -159,16 +161,17 @@ class Passenger(threading.Thread):
                 break
             # if done checkin  
             if self.pos == Passenger.CHECKIN_DONE:
-                print(f'Passenger {self.Name} has done Check-in. Goint to next procedure.')
+                print(f'Passenger {self.Name} has done Check-in. Going to next procedure.')
                 break
-            time.sleep
+            time.sleep(1)
+
 
 # creating servers and server queue
 for i in range(3):
-    CheckInQ = QueueClass(10000,f'Q{i}')
+    CheckInQ = QueueClass(10000,f'Q{i+1}')
     # Assigning queue to server
-    server = CheckInServer(CheckInQ)
     CheckInServersQ.append(CheckInQ)
+    server = CheckInServer(CheckInServersQ[i],i)
     CheckInServers.append(server)
     CheckInServers[i].start()
     threads.append(server)
@@ -176,9 +179,7 @@ print('Servers Created.... Starting Simulation...')
 time.sleep(1)
 
 while simTime < simEnd:
-    
-    FlightTimeProbabilities = PassengerArriveProb
-    NewPassengerAmount = FlightTimeProbabilities[simTime%30]
+    NewPassengerAmount = random.randint(0,4)
 
     for i in range(NewPassengerAmount):
         
@@ -191,9 +192,10 @@ while simTime < simEnd:
         # if married or have family, get the last name only to represent family
         else:
             Name = names.get_last_name()
+        Loc = [np.random.rand()*1000,780]
         
         # create new passenger with the classes
-        newPass = Passenger(maritalStatus, Name)
+        newPass = Passenger(maritalStatus, Name,Loc)
         newPass.start() # start
         DoorQ.put(newPass) # get the passenger into the list for initial queue
         threads.append(newPass) # thread list to wait for all thread finish
@@ -212,7 +214,7 @@ for i in range(len(CheckInServersQ)):
     print(f'Queue {i+1}')
     print(f'    People still in queue: {CheckInServersQ[i].qsize()}')
     print(f'    Served number: {CheckInServersQ[i].Number}')
-    print(f'    Overall Waiting Time for this queue: {CheckInServersQ[0].Time} Seconds.')
-print(f'Overall waiting time for all queue: {OverallWaitingTime} Seconds.')
+    print(f'    Overall Waiting Time for this queue: {CheckInServersQ[i].Time} Minutes.')
+print(f'Overall waiting time for all queue: {OverallWaitingTime} Minutes.')
 print(f'{rejected.qsize()} people has been rejected')
 print(f'{exit.qsize()} people have done check-in process and proceed to the next stage')

@@ -5,29 +5,9 @@ import names
 import time
 import numpy as np
 from tkinter import *
-from queue import Queue
 
-class QueueClass(List) :
-    def __init__(self,name,Loc) :
-        List.__init__(self)
-        self.Lock = threading.Lock() # for put queue function and increase self.Number
-        self.LockGet = threading.Lock() # for popping the queue
-        self.LockTime = threading.Lock() # for increasing time
-        self.Name = name # name of this queue
-        self.Time = 0 # waiting time in the queue
-        self.Number = 0 # number (for check in queue)
-        self.Loc = Loc
-
-    def put(self,item):
-        self.append(item)
-
-    def getIndex(self,item):
-        return self.index(item)
-    
-    def get(self):
-        item = self[0]
-        self.remove(item)
-        return item
+def putItem(List ,item):
+    List.append(item)
 
 
 def normalize(v):
@@ -40,12 +20,16 @@ SimWindow = Tk()
 SimHeight = 800
 SimWidth = 1000
 simTime = 0
-simEnd = 10
+simEnd = 20
 serverAmount = 3
 inQPos = []
 
-rejected = QueueClass('Rejected',None) # for passenger who fail to board flight
-exit = QueueClass('Exit',None) # for passenger who pass check in
+rejected = [] # for passenger who fail to board flight
+rejectedLock = threading.Lock()
+rejectedNumber = 0
+rejectedNumberLoc = threading.Lock()
+exit = [] # for passenger who pass check in
+exitLock = threading.Lock
 DoorQ = []
 CurrPassengers = []
 threads = [] # all threads
@@ -53,6 +37,15 @@ threads = [] # all threads
 OverallWaitingTime = 0 # total waiting time for all passengers
 OverallWaitingTimeLock = threading.Lock()
 CheckInServersQ = [] # list for check in queue
+CheckInServersQTime = [0,0,0]
+qNumber =[0,0,0]
+qNumberLock = []
+CheckInServersQLock = []
+CheckInServersQTimeLock = []
+for i in range(3):
+    qNumberLock.append(threading.Lock())
+    CheckInServersQLock.append(threading.Lock())
+    CheckInServersQTimeLock.append(threading.Lock())
 queueDisplay = [] # display queue
 CheckInServers = [] # list for check in server
 serverDisplay  = []
@@ -77,8 +70,9 @@ class CheckInServer(threading.Thread):
         self.Q = queue
         self.ID = ID
         self.Loc = Loc
-
+        
     def run(self):
+
         global simTime, simEnd
 
         while simTime < simEnd :
@@ -91,56 +85,44 @@ class CheckInServer(threading.Thread):
                     time.sleep(random.randint(0, 3))
                     self.Customer.pos = Passenger.CHECKIN_REJECTED
                     # add to rejected list
-                    rejected.Lock.acquire()
-                    rejected.put(self.Customer)
-                    rejected.Lock.release()
+                    putItem(rejected,self.Customer)
                     # increasing the number served by the server
-                    self.Q.Lock.acquire()
-                    self.Q.Number += 1
-                    self.Q.Lock.release()
+                    qNumber[CheckInServersQ.index(self.Q)] += 1
                 else:
                     if self.Customer.Luggage:
                         time.sleep(random.randint(1, 2))
                         self.Customer.pos = Passenger.CHECKIN_DONE
                         # add to done list
-                        exit.Lock.acquire()
-                        exit.put(self.Customer)
-                        exit.Lock.release()
+                        putItem(exit,self.Customer)
                         # increasing the number served by the server
-                        self.Q.Lock.acquire()
-                        self.Q.Number += 1
-                        self.Q.Lock.release()
+                        qNumber[CheckInServersQ.index(self.Q)] += 1   
                     else:
                         time.sleep(random.randint(1, 4))
                         self.Customer.pos = Passenger.CHECKIN_DONE
                         # add to done list
-                        exit.Lock.acquire()
-                        exit.put(self.Customer)
-                        exit.Lock.release()
-                        # increasing the number served by the server
-                        self.Q.Lock.acquire()
-                        self.Q.Number += 1
-                        self.Q.Lock.release()
-
-    # function to get customer from queue
+                        putItem(exit,self.Customer)
+                        # increasing the number served by the server 
+                        qNumber[CheckInServersQ.index(self.Q)] += 1   
+    
     def CheckGetCustomer(self):
-        self.Q.LockGet.acquire()
-        if not self.Q.empty():
-            self.Customer = self.Q.get()
-            self.Status = CheckInServer.BUSY
-        else:
-            self.Customer = None
-        self.Q.LockGet.release()
-        time.sleep(1)
+            if self.Q:
+                self.Customer = self.Q[0]
+                self.Q.remove(self.Customer)
+                self.Status = CheckInServer.BUSY
+                self.Customer.pos = Passenger.CHECKIN_SERVING
+            else:
+                self.Customer = None
+            time.sleep(1)
 
 class Passenger(threading.Thread):
     status = ['Single','Married','Family']
     statusWeight = [0.2,0.66,0.14]
     DOORQ_IN_QUEUE = 0
     CHECKIN_IN_QUEUE = 1
+    CHECKIN_SERVING = 2
     CHECKIN_REJECTED = 3
     CHECKIN_DONE = 4
-    
+
     def __init__(self, maritalStatus, name, Loc):
         threading.Thread.__init__(self)
         self.MaritalStatus = maritalStatus
@@ -151,75 +133,81 @@ class Passenger(threading.Thread):
         self.Luggage = np.random.choice([True,False],1,[0.75,0.25])
         self.Q = None
         self.Loc = Loc
-        print(f'Passenger {self.Name} created.')
+        self.move = None
+        self.visible = True
+        # print(f'Passenger {self.Name} created.')
     
     def run(self):
-        global simTime, simEnd, CheckInServers, rejected, OverallWaitingTime, CurrPassengers, inQPos,CheckInServersQ
-
+        global simTime, simEnd, CheckInServers, rejected, OverallWaitingTime, CurrPassengers, inQPos, CheckInServersQ, canvas
         while simTime < simEnd:
-            # if passenger in queue, increate waiting time for queue and overall
+            self.move = np.array((0,0))
+            if self.pos == Passenger.CHECKIN_SERVING:
+                continue
             if self.pos == Passenger.CHECKIN_IN_QUEUE:
-                OverallWaitingTimeLock.acquire()
-                OverallWaitingTime += 1
-                OverallWaitingTimeLock.release()
-                self.Q.LockTime.acquire()
-                self.Q.Time += 1
-                self.Q.LockTime.release()
+                qNo = CheckInServersQ.index(self.Q)
+                InqNo = self.Q.index(self)
+                currLoc = inQPos[qNo][InqNo]
+                self.move = np.array(currLoc) - np.array(self.Loc)
+                self.Loc = self.move + self.Loc
+                print(tuple(self.Loc))
+                OverallWaitingTime += 1   
+                CheckInServersQTime[CheckInServersQ.index(self.Q)] += 1   
 
             if self.pos == Passenger.DOORQ_IN_QUEUE:
                 newQ = random.sample(CheckInServersQ, 3)
                 qsize = []
                 Break = False
                 for i in newQ:
-                    if not i.full():
-                        if i.empty():
-                            self.Q = i
-                            self.Q.Lock.acquire()
-                            self.Q.put(self)
-                            self.Q.Lock.release()
-                            self.pos = Passenger.CHECKIN_IN_QUEUE
-                            Break = True
-                            print(f'{self.Name} went into {self.Q.Name}')
-                            break
-                        else:
-                            Break = False
-                            qsize.append(i.qsize())
+                    if not i:
+                        self.Q = i
+                        putItem(self.Q, self)
+                        self.pos = Passenger.CHECKIN_IN_QUEUE
+                        Break = True
+                        # print(f'{self.Name} went into queue {CheckInServersQ.index(self.Q) + 1}')
+                        break
+                    else:
+                        Break = False
+                        qsize.append(len(i))
                 if not Break:
                     minVal = min(qsize)
                     minIndex = qsize.index(minVal)
                     self.Q = newQ[minIndex]
-                    self.Q.Lock.acquire()
-                    self.Q.put(self)
-                    self.Q.Lock.release()
+                    putItem(self.Q, self)
                     self.pos = Passenger.CHECKIN_IN_QUEUE
-                    print(f'{self.Name} went into {self.Q.Name}')
+                    # print(f'{self.Name} went into {CheckInServersQ.index(self.Q) + 1}')
                 
             # if rejected                 
             if  self.pos == Passenger.CHECKIN_REJECTED:
-                print(f'Passenger {self.Name} rejected')
+                # print(f'Passenger {self.Name} rejected')
                 CurrPassengers.remove(self)
-                canvas.delete(f'{self.Name}')
+                self.visible = False
                 break
             # if done checkin  
             if self.pos == Passenger.CHECKIN_DONE:
-                print(f'Passenger {self.Name} has done Check-in. Goint to next procedure.')
+                # print(f'Passenger {self.Name} has done Check-in. Going to next procedure.')
                 CurrPassengers.remove(self)
-                canvas.delete(f'{self.Name}')
+                self.visible = False
                 break
             time.sleep(1)
 
 offset = 0
 queueStartLoc = []
+hello = []
 # creating servers and server queue
 for i in range(serverAmount):
+    InqueueLoc = [320+offset,120]
     inQOffset = 0
+    tempQPos = []
+
     for j in range(17):
-        # inQPos.append(canvas.create_oval(queueLoc[0], queueLoc[1]+inQOffset, queueLoc[0]+20, queueLoc[1]+20+inQOffset,fill=random.choice(fillColor)))
-        inQPos.append(queueLoc)
+        tempQPos.append(InqueueLoc)
+        hello.append(canvas.create_oval(InqueueLoc[0], InqueueLoc[1]+inQOffset, InqueueLoc[0]+20, InqueueLoc[1]+20+inQOffset,fill=random.choice(fillColor)))
         inQOffset +=30
+
+    inQPos.append(tempQPos)
     Loc = np.array((325+offset,630))
     queueStartLoc.append(Loc)
-    CheckInQ = QueueClass(f'Q{i+1}',Loc)
+    CheckInQ = []
     CheckInServersQ.append(CheckInQ)
     queueLoc = [300+offset,120]
     queueDisplay.append(canvas.create_rectangle(queueLoc[0], queueLoc[1], queueLoc[0] + 60, queueLoc[1] + 500, fill=queueFill))
@@ -255,13 +243,29 @@ while simTime < simEnd:
         CurrPassengers.append(newPass)
         threads.append(newPass) # thread list to wait for all thread finish
         passengerDisplay.append(canvas.create_oval(Loc[0], Loc[1], Loc[0] + 20, Loc[1] + 20, fill=random.choice(fillColor),tags=f'{Name}'))
-        
-    # for i in range(len(CurrPassengers)):
-    #     canvas.move(passengerDisplay[i],finaldir[0],finaldir[1])
+    
+    for i in range(len(CurrPassengers)):
+        if not CurrPassengers[i].visible: 
+            canvas.delete(f'{CurrPassengers.Name}')
+        else:
+            canvas.move(passengerDisplay[i],CurrPassengers[i].move[0],CurrPassengers[i].move[1])
+            SimWindow.update()
+    
     time.sleep(1) # 1 minute delay
     simTime += 1
-    SimWindow.update()
-
-
+    
+for x in threads:
+    x.join()
+# output
+print('\nOUTPUT:')
+print(f'{len(DoorQ)} people went in.')
+for i in range(len(CheckInServersQ)):
+    print(f'Queue {i+1}')
+    print(f'    People still in queue: {len(CheckInServersQ[i])}')
+    print(f'    Served number: {qNumber[i]}')
+    print(f'    Overall Waiting Time for this queue: {CheckInServersQTime[i]} Minutes.')
+print(f'Overall waiting time for all queue: {OverallWaitingTime} Minutes.')
+print(f'{len(rejected)} people has been rejected')
+print(f'{len(exit)} people have done check-in process and proceed to the next stage')
 
 SimWindow.mainloop()
