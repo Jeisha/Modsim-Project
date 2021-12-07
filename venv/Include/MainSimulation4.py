@@ -8,12 +8,6 @@ from tkinter import *
 
 def putItem(List ,item):
     List.append(item)
-    
-def normalize(v):
-    norm = np.linalg.norm(v)
-    if norm == 0:
-        return v
-    return v / norm
 
 SimWindow = Tk()
 SimHeight = 800
@@ -21,7 +15,6 @@ SimWidth = 1000
 simTime = 0
 simEnd = 30
 serverAmount = 3
-inQPos = []
 
 rejected = [] # for passenger who fail to board flight
 rejectedLock = threading.Lock()
@@ -38,13 +31,8 @@ OverallWaitingTimeLock = threading.Lock()
 CheckInServersQ = [] # list for check in queue
 CheckInServersQTime = [0,0,0]
 qNumber =[0,0,0]
-qNumberLock = []
-CheckInServersQLock = []
-CheckInServersQTimeLock = []
-for i in range(3):
-    qNumberLock.append(threading.Lock())
-    CheckInServersQLock.append(threading.Lock())
-    CheckInServersQTimeLock.append(threading.Lock())
+inQPos = []
+
 queueDisplay = [] # display queue
 CheckInServers = [] # list for check in server
 serverDisplay  = []
@@ -188,7 +176,6 @@ class Passenger(threading.Thread):
 
 offset = 0
 queueStartLoc = []
-hello = []
 # creating servers and server queue
 for i in range(serverAmount):
     InqueueLoc = [320+offset,120]
@@ -204,11 +191,12 @@ for i in range(serverAmount):
     queueStartLoc.append(Loc)
     CheckInQ = []
     CheckInServersQ.append(CheckInQ)
+
     queueLoc = [300+offset,120]
     queueDisplay.append(canvas.create_rectangle(queueLoc[0], queueLoc[1], queueLoc[0] + 60, queueLoc[1] + 500, fill=queueFill))
 
-    # Assigning queue to server
     Loc = [300+offset, 50]
+    # Assigning queue to server
     server = CheckInServer(CheckInServersQ[i],i, Loc)
     CheckInServers.append(server)
     serverDisplay.append(canvas.create_rectangle(Loc[0], Loc[1], Loc[0] + 60, Loc[1] + 60, fill=serverFill))
@@ -217,7 +205,6 @@ for i in range(serverAmount):
     offset += 200
 
 while simTime < simEnd:
-
 
     NewPassengerAmount = random.randint(0,5)
     for i in range(NewPassengerAmount):
@@ -238,7 +225,7 @@ while simTime < simEnd:
         DoorQ.append(newPass) # get the passenger into the list for initial queue
         CurrPassengers.append(newPass)
         threads.append(newPass) # thread list to wait for all thread finish
-        passengerDisplay.append(canvas.create_oval(Loc[0], Loc[1], Loc[0] + 20, Loc[1] + 20, fill=random.choice(fillColor),tags=f'{Name}'))
+        passengerDisplay.append(canvas.create_oval(Loc[0], Loc[1], Loc[0] + 20, Loc[1] + 20, fill=random.choice(fillColor),tags=f'{Name}')) # visualisation
     index = []
     for i in range(len(CurrPassengers)):
         if CurrPassengers[i].visible == False: 
@@ -263,7 +250,7 @@ print('\nOUTPUT:')
 print(f'{len(DoorQ)} people went in.')
 for i in range(len(CheckInServersQ)):
     print(f'Queue {i+1}')
-    print(f'    People still in queue: {len(CheckInServersQ[i])}')
+    print(f'    People still in queue : {len(CheckInServersQ[i])}')
     print(f'    Served number: {qNumber[i]}')
     print(f'    Overall Waiting Time for this queue: {CheckInServersQTime[i]} Minutes.')
 print(f'Overall waiting time for all queue: {OverallWaitingTime} Minutes.')
