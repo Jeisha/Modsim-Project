@@ -36,15 +36,18 @@ for i in range(3):
     offset += 200
 
 offset = 0
+k = []
 for i in range(3):
     queueLoc = [320+offset,120]
     inQOffset = 0
+    hello = []
     for j in range(17):
-        inQPos.append(canvas.create_oval(queueLoc[0], queueLoc[1]+inQOffset, queueLoc[0]+20, queueLoc[1]+20+inQOffset,fill=random.choice(fillColor)))
-        inQPos[i].append(queueLoc[0], queueLoc[1]+inQOffset, queueLoc[0]+20, queueLoc[1]+20+inQOffset)
-        inQOffset +=30
-
+        inQPos.append(canvas.create_oval(queueLoc[0],queueLoc[1]+inQOffset, queueLoc[0]+20, queueLoc[1]+20+inQOffset,fill=random.choice(fillColor)))
+        hello.append([queueLoc[0],queueLoc[1]+inQOffset])
+        inQOffset += 30
+    k.append(hello)
     offset += 200
+print(k)
 
 for i in range(10): 
     passengerLoc.append([np.random.rand()*SimWidth,780])
@@ -53,6 +56,9 @@ for i in range(10):
 queue1StartLoc = np.array((325,630))
 queue2StartLoc = np.array((525,630))
 queue3StartLoc = np.array((725,630))
+queue1StartDisp = canvas.create_oval(queue1StartLoc[0],queue1StartLoc[1],queue1StartLoc[0]+10,queue1StartLoc[1]+10, fill = 'yellow')
+queue2StartDisp = canvas.create_oval(queue2StartLoc[0],queue2StartLoc[1],queue2StartLoc[0]+10,queue2StartLoc[1]+10, fill = 'yellow')
+queue3StartDisp = canvas.create_oval(queue3StartLoc[0],queue3StartLoc[1],queue3StartLoc[0]+10,queue3StartLoc[1]+10, fill = 'yellow')
 
 while simTime < simEnd:
     for i in range(len(passengerDisplay)):

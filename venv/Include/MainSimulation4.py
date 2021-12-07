@@ -8,8 +8,7 @@ from tkinter import *
 
 def putItem(List ,item):
     List.append(item)
-
-
+    
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm == 0:
@@ -20,7 +19,7 @@ SimWindow = Tk()
 SimHeight = 800
 SimWidth = 1000
 simTime = 0
-simEnd = 20
+simEnd = 30
 serverAmount = 3
 inQPos = []
 
@@ -90,14 +89,14 @@ class CheckInServer(threading.Thread):
                     qNumber[CheckInServersQ.index(self.Q)] += 1
                 else:
                     if self.Customer.Luggage:
-                        time.sleep(random.randint(1, 2))
+                        time.sleep(random.randint(1,4))
                         self.Customer.pos = Passenger.CHECKIN_DONE
                         # add to done list
                         putItem(exit,self.Customer)
                         # increasing the number served by the server
                         qNumber[CheckInServersQ.index(self.Q)] += 1   
                     else:
-                        time.sleep(random.randint(1, 4))
+                        time.sleep(random.randint(1, 5))
                         self.Customer.pos = Passenger.CHECKIN_DONE
                         # add to done list
                         putItem(exit,self.Customer)
@@ -112,7 +111,7 @@ class CheckInServer(threading.Thread):
                 self.Customer.pos = Passenger.CHECKIN_SERVING
             else:
                 self.Customer = None
-            time.sleep(1)
+            time.sleep(2)
 
 class Passenger(threading.Thread):
     status = ['Single','Married','Family']
@@ -135,10 +134,10 @@ class Passenger(threading.Thread):
         self.Loc = Loc
         self.move = None
         self.visible = True
-        # print(f'Passenger {self.Name} created.')
+        print(f'Passenger {self.Name} created.')
     
     def run(self):
-        global simTime, simEnd, CheckInServers, rejected, OverallWaitingTime, CurrPassengers, inQPos, CheckInServersQ, canvas
+        global simTime, simEnd, CheckInServers, rejected, OverallWaitingTime, inQPos, CheckInServersQ, canvas
         while simTime < simEnd:
             self.move = np.array((0,0))
             if self.pos == Passenger.CHECKIN_SERVING:
@@ -149,7 +148,6 @@ class Passenger(threading.Thread):
                 currLoc = inQPos[qNo][InqNo]
                 self.move = np.array(currLoc) - np.array(self.Loc)
                 self.Loc = self.move + self.Loc
-                print(tuple(self.Loc))
                 OverallWaitingTime += 1   
                 CheckInServersQTime[CheckInServersQ.index(self.Q)] += 1   
 
@@ -163,7 +161,7 @@ class Passenger(threading.Thread):
                         putItem(self.Q, self)
                         self.pos = Passenger.CHECKIN_IN_QUEUE
                         Break = True
-                        # print(f'{self.Name} went into queue {CheckInServersQ.index(self.Q) + 1}')
+                        print(f'{self.Name} went into queue {CheckInServersQ.index(self.Q) + 1}')
                         break
                     else:
                         Break = False
@@ -174,21 +172,19 @@ class Passenger(threading.Thread):
                     self.Q = newQ[minIndex]
                     putItem(self.Q, self)
                     self.pos = Passenger.CHECKIN_IN_QUEUE
-                    # print(f'{self.Name} went into {CheckInServersQ.index(self.Q) + 1}')
+                    print(f'{self.Name} went into {CheckInServersQ.index(self.Q) + 1}')
                 
             # if rejected                 
             if  self.pos == Passenger.CHECKIN_REJECTED:
-                # print(f'Passenger {self.Name} rejected')
-                CurrPassengers.remove(self)
+                print(f'Passenger {self.Name} rejected')
                 self.visible = False
                 break
             # if done checkin  
             if self.pos == Passenger.CHECKIN_DONE:
-                # print(f'Passenger {self.Name} has done Check-in. Going to next procedure.')
-                CurrPassengers.remove(self)
+                print(f'Passenger {self.Name} has done Check-in. Going to next procedure.')
                 self.visible = False
                 break
-            time.sleep(1)
+            time.sleep(2)
 
 offset = 0
 queueStartLoc = []
@@ -200,10 +196,9 @@ for i in range(serverAmount):
     tempQPos = []
 
     for j in range(17):
-        tempQPos.append(InqueueLoc)
-        hello.append(canvas.create_oval(InqueueLoc[0], InqueueLoc[1]+inQOffset, InqueueLoc[0]+20, InqueueLoc[1]+20+inQOffset,fill=random.choice(fillColor)))
+        tempQPos.append([InqueueLoc[0],InqueueLoc[1]+inQOffset])
         inQOffset +=30
-
+    
     inQPos.append(tempQPos)
     Loc = np.array((325+offset,630))
     queueStartLoc.append(Loc)
@@ -222,8 +217,9 @@ for i in range(serverAmount):
     offset += 200
 
 while simTime < simEnd:
-    NewPassengerAmount = random.randint(0,4)
 
+
+    NewPassengerAmount = random.randint(0,4)
     for i in range(NewPassengerAmount):
         
         # status for person
@@ -235,7 +231,7 @@ while simTime < simEnd:
         # if married or have family, get the last name only to represent family
         else:
             Name = names.get_last_name()
-        Loc = [np.random.rand()*SimWidth,780]
+        Loc = np.array([np.random.rand()*SimWidth,780])
         # create new passenger with the classes
         newPass = Passenger(maritalStatus, Name, Loc)
         newPass.start() # start
@@ -243,15 +239,20 @@ while simTime < simEnd:
         CurrPassengers.append(newPass)
         threads.append(newPass) # thread list to wait for all thread finish
         passengerDisplay.append(canvas.create_oval(Loc[0], Loc[1], Loc[0] + 20, Loc[1] + 20, fill=random.choice(fillColor),tags=f'{Name}'))
-    
+    index = []
     for i in range(len(CurrPassengers)):
-        if not CurrPassengers[i].visible: 
-            canvas.delete(f'{CurrPassengers.Name}')
+        if CurrPassengers[i].visible == False: 
+            index.append(i)
         else:
             canvas.move(passengerDisplay[i],CurrPassengers[i].move[0],CurrPassengers[i].move[1])
             SimWindow.update()
+    index.sort(reverse=True)
+    for i in index:
+        canvas.delete(f'{CurrPassengers[i].Name}')
+        CurrPassengers.pop(i)
+        passengerDisplay.pop(i)
     
-    time.sleep(1) # 1 minute delay
+    time.sleep(2) # 1 minute delay
     simTime += 1
     
 for x in threads:
